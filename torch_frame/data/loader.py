@@ -30,16 +30,23 @@ class DataLoader(torch.utils.data.DataLoader):
         **kwargs (optional): Additional keyword arguments of
             :class:`torch.utils.data.DataLoader`.
     """
+
     def __init__(
         self,
         dataset: Dataset | TensorFrame,
         *args,
         **kwargs,
     ):
-        kwargs.pop('collate_fn', None)
+        kwargs.pop("collate_fn", None)
+        self.in_memory = isinstance(dataset, TensorFrame) or dataset.in_memory
 
         if isinstance(dataset, Dataset):
-            self.tensor_frame: TensorFrame = dataset.materialize().tensor_frame
+            if dataset.in_memory:
+                self.tensor_frame: TensorFrame = dataset.materialize().tensor_frame
+            else:
+                self.tensor_frame: TensorFrame = (
+                    lambda index: dataset[index].materialize().tensor_frame
+                )
         else:
             self.tensor_frame: TensorFrame = dataset
 
@@ -51,4 +58,7 @@ class DataLoader(torch.utils.data.DataLoader):
         )
 
     def collate_fn(self, index: IndexSelectType) -> TensorFrame:
-        return self.tensor_frame[index]
+        if self.in_memory:
+            return self.tensor_frame[index]
+        else:
+            return self.tensor_frame(index)
